@@ -1,21 +1,45 @@
 from pathlib import Path
+import sys
 import pandas as pd
 from dash import Dash, dcc, html, dash_table, Input, Output, State, no_update
 import plotly.express as px
 
 
-BASE_DIR = Path(__file__).resolve().parent
+def get_base_dir():
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+BASE_DIR = get_base_dir()
 DATA_DIR = BASE_DIR / 'data'
-FUNCOES_MAP = BASE_DIR / 'data' / 'normalizacao_funcoes.csv'
-SETORES_MAP = BASE_DIR / 'data' / 'normalizacao_setores.csv'
-RESPOSTAS_MAP = BASE_DIR / 'data' / 'map_respostas.csv'
-PESOS_PATH = BASE_DIR / 'data' / 'pesos_perguntas.csv'
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+FUNCOES_MAP = DATA_DIR / 'normalizacao_funcoes.csv'
+SETORES_MAP = DATA_DIR / 'normalizacao_setores.csv'
+RESPOSTAS_MAP = DATA_DIR / 'map_respostas.csv'
+PESOS_PATH = DATA_DIR / 'pesos_perguntas.csv'
 
 
-xlsx_files = list(DATA_DIR.glob('*.xlsx'))
-if not xlsx_files:
-    raise FileNotFoundError(f'Nenhum arquivo .xlsx encontrado em: {DATA_DIR}')
-DATA_FILE = xlsx_files[0]
+def find_data_file():
+    candidate_dirs = [
+        DATA_DIR,
+        Path.cwd() / 'data',
+        BASE_DIR
+    ]
+
+    for folder in candidate_dirs:
+        folder.mkdir(parents=True, exist_ok=True)
+        files = sorted(folder.glob('*.xlsx'))
+        if files:
+            return files[0]
+
+    checked = "\n".join(str(p) for p in candidate_dirs)
+    raise FileNotFoundError(
+        "Nenhum arquivo .xlsx encontrado.\n"
+        "Coloque o arquivo exportado do Google Forms em uma destas pastas:\n"
+        f"{checked}"
+    )
 
 
 REV_KEYWORDS = [
@@ -275,7 +299,8 @@ def build_score_map(respostas_df):
 
 
 def load_data():
-    df = pd.read_excel(DATA_FILE)
+    data_file = find_data_file()
+    df = pd.read_excel(data_file)
     df.columns = [str(c).replace('\xa0', ' ').strip() for c in df.columns]
 
     func_col, setor_col = detect_columns(df)

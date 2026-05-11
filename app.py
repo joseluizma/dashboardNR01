@@ -1,45 +1,22 @@
 from pathlib import Path
-import sys
 import pandas as pd
 from dash import Dash, dcc, html, dash_table, Input, Output, State, no_update
 import plotly.express as px
+import sys
 
 
-def get_base_dir():
-    if getattr(sys, 'frozen', False):
-        return Path(sys.executable).resolve().parent
-    return Path(__file__).resolve().parent
-
-
-BASE_DIR = get_base_dir()
+BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / 'data'
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-FUNCOES_MAP = DATA_DIR / 'normalizacao_funcoes.csv'
-SETORES_MAP = DATA_DIR / 'normalizacao_setores.csv'
-RESPOSTAS_MAP = DATA_DIR / 'map_respostas.csv'
-PESOS_PATH = DATA_DIR / 'pesos_perguntas.csv'
+FUNCOES_MAP = BASE_DIR / 'data' / 'normalizacao_funcoes.csv'
+SETORES_MAP = BASE_DIR / 'data' / 'normalizacao_setores.csv'
+RESPOSTAS_MAP = BASE_DIR / 'data' / 'map_respostas.csv'
+PESOS_PATH = BASE_DIR / 'data' / 'pesos_perguntas.csv'
 
 
-def find_data_file():
-    candidate_dirs = [
-        DATA_DIR,
-        Path.cwd() / 'data',
-        BASE_DIR
-    ]
-
-    for folder in candidate_dirs:
-        folder.mkdir(parents=True, exist_ok=True)
-        files = sorted(folder.glob('*.xlsx'))
-        if files:
-            return files[0]
-
-    checked = "\n".join(str(p) for p in candidate_dirs)
-    raise FileNotFoundError(
-        "Nenhum arquivo .xlsx encontrado.\n"
-        "Coloque o arquivo exportado do Google Forms em uma destas pastas:\n"
-        f"{checked}"
-    )
+xlsx_files = list(DATA_DIR.glob('*.xlsx'))
+if not xlsx_files:
+    raise FileNotFoundError(f'Nenhum arquivo .xlsx encontrado em: {DATA_DIR}')
+DATA_FILE = xlsx_files[0]
 
 
 REV_KEYWORDS = [
@@ -299,8 +276,7 @@ def build_score_map(respostas_df):
 
 
 def load_data():
-    data_file = find_data_file()
-    df = pd.read_excel(data_file)
+    df = pd.read_excel(DATA_FILE)
     df.columns = [str(c).replace('\xa0', ' ').strip() for c in df.columns]
 
     func_col, setor_col = detect_columns(df)
@@ -466,24 +442,47 @@ app.layout = html.Div([
 
 def dashboard_layout():
     base_local = resumo_perguntas(df, perguntas, respostas_df, pesos_df)
-    dimensoes = build_dimensoes(base_local)
 
     return html.Div([
         html.Div([
-            html.Label('Dimensão'),
-            dcc.Dropdown(
-                id='filtro-dimensao',
-                options=[{'label': 'Todas', 'value': '__all__'}] + [
-                    {'label': d, 'value': d} for d in sorted(base_local['dimensao'].unique())
-                ],
-                value='__all__',
-                clearable=False
-            )
-        ], style={'maxWidth': '320px', 'marginBottom': '20px'}),
+            html.Div([
+                html.Label('Modo da função'),
+                dcc.RadioItems(
+                    id='modo-funcao-dashboard',
+                    options=[
+                        {'label': 'Original', 'value': 'funcao_original'},
+                        {'label': 'Agrupada', 'value': 'funcao_agrupada'}
+                    ],
+                    value='funcao_agrupada',
+                    inline=True
+                )
+            ], style={'minWidth': '260px'}),
+
+            html.Div([
+                html.Label('Função'),
+                dcc.Dropdown(
+                    id='filtro-funcao-dashboard',
+                    options=[{'label': 'Todas', 'value': '__all__'}],
+                    value='__all__',
+                    clearable=False
+                )
+            ], style={'minWidth': '320px'}),
+
+            html.Div([
+                html.Label('Dimensão'),
+                dcc.Dropdown(
+                    id='filtro-dimensao',
+                    options=[{'label': 'Todas', 'value': '__all__'}] + [
+                        {'label': d, 'value': d} for d in sorted(base_local['dimensao'].unique())
+                    ],
+                    value='__all__',
+                    clearable=False
+                )
+            ], style={'minWidth': '320px'})
+        ], style={'display': 'flex', 'gap': '24px', 'flexWrap': 'wrap', 'marginBottom': '20px'}),
 
         dcc.Graph(
             id='graf-dimensoes',
-            figure=make_bar(dimensoes, 'indice_risco', 'dimensao', 'Índice de risco por dimensão', color='classificacao_risco'),
             style={'height': '420px'}
         ),
 
@@ -655,18 +654,39 @@ def render_tab(tab, _):
 
 
 @app.callback(
+    Output('filtro-funcao-dashboard', 'options'),
+    Output('filtro-funcao-dashboard', 'value'),
+    Input('modo-funcao-dashboard', 'value')
+)
+def update_funcoes_dashboard_options(modo_funcao):
+    valores = sorted(df[modo_funcao].dropna().astype(str).unique().tolist())
+    options = [{'label': 'Todas', 'value': '__all__'}] + [
+        {'label': v, 'value': v} for v in valores
+    ]
+    return options, '__all__'
+
+
+@app.callback(
     Output('graf-dimensoes', 'figure'),
     Output('tabela-itens', 'data'),
     Output('tabela-itens', 'columns'),
+    Input('modo-funcao-dashboard', 'value'),
+    Input('filtro-funcao-dashboard', 'value'),
     Input('filtro-dimensao', 'value')
 )
-def update_dashboard(filtro_dimensao):
-    itens = base.copy()
+def update_dashboard(modo_funcao, filtro_funcao, filtro_dimensao):
+    df_filtrado = df.copy()
+
+    if filtro_funcao != '__all__':
+        df_filtrado = df_filtrado[df_filtrado[modo_funcao] == filtro_funcao]
+
+    itens = resumo_perguntas(df_filtrado, perguntas, respostas_df, pesos_df)
 
     if filtro_dimensao != '__all__':
         itens = itens[itens['dimensao'] == filtro_dimensao]
 
     dim_df = build_dimensoes(itens)
+
     fig_dim = make_bar(
         dim_df,
         'indice_risco',

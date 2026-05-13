@@ -61,7 +61,7 @@ OPERADOR,OPERADOR
 OPERAÇÃO,OPERAÇÃO
 Operacional,Operacional
 Operador WEB,Operador WEB
-Operador de atendimento,Operador de atendimento
+Operador de atendimento,Operador de Teleatendimento
 Operação,Operação
 Operações,Operações
 Ouvidoria,Ouvidoria
@@ -86,7 +86,7 @@ Sac/ cartão de crédito/ com _renegociação / com_comercial / comercial / refo
 Segmento Cidadão,Segmento Cidadão
 Segmento cidadão,Segmento cidadão
 Setor Atendimento Interno Caixa,Setor Atendimento Interno Caixa
-Setor de tele-antendimento  (habitação),Setor de tele-antendimento  (habitação)
+Setor de tele-antendimento  (habitação),Operador de Teleatendimento
 Ste,Ste
 Ste extenção em cartãoes,Ste extenção em cartãoes
 Suporte tecnico,Suporte tecnico
@@ -103,9 +103,9 @@ WEB CHAT,WEB CHAT
 Web,Web
 Web Chat,Web Chat
 Webchat,Webchat
-atendimento,atendimento
-atendimento SAC,atendimento SAC
-atendimento telefonico,atendimento telefonico
+atendimento,Operador de Teleatendimento
+atendimento SAC,Operador de Teleatendimento
+atendimento telefonico,Operador de Teleatendimento
 call center,call center
 cartao,cartao
 cartoes,cartoes
@@ -144,7 +144,7 @@ ste/ cartões/cidadão e lotéricos,ste/ cartões/cidadão e lotéricos
 ste/cidadão,ste/cidadão
 ste/cidadão/lotéricos/ cartões,ste/cidadão/lotéricos/ cartões
 suporte tecnologico,suporte tecnologico
-teleatendimento,teleatendimento
+teleatendimento,Operador de Teleatendimento
 ti,ti
 todos,todos
 web,web

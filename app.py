@@ -1,22 +1,72 @@
 from pathlib import Path
+import shutil
 import pandas as pd
 from dash import Dash, dcc, html, dash_table, Input, Output, State, no_update
 import plotly.express as px
 import sys
 
 
-BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / 'data'
-FUNCOES_MAP = BASE_DIR / 'data' / 'normalizacao_funcoes.csv'
-SETORES_MAP = BASE_DIR / 'data' / 'normalizacao_setores.csv'
-RESPOSTAS_MAP = BASE_DIR / 'data' / 'map_respostas.csv'
-PESOS_PATH = BASE_DIR / 'data' / 'pesos_perguntas.csv'
+def get_runtime_base_dir():
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
 
 
-xlsx_files = list(DATA_DIR.glob('*.xlsx'))
-if not xlsx_files:
-    raise FileNotFoundError(f'Nenhum arquivo .xlsx encontrado em: {DATA_DIR}')
-DATA_FILE = xlsx_files[0]
+def get_bundle_base_dir():
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        return Path(sys._MEIPASS).resolve()
+    return Path(__file__).resolve().parent
+
+
+RUNTIME_BASE_DIR = get_runtime_base_dir()
+BUNDLE_BASE_DIR = get_bundle_base_dir()
+DATA_DIR = RUNTIME_BASE_DIR / 'data'
+SOURCE_DATA_DIR = BUNDLE_BASE_DIR / 'data'
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+FUNCOES_MAP = DATA_DIR / 'normalizacao_funcoes.csv'
+SETORES_MAP = DATA_DIR / 'normalizacao_setores.csv'
+RESPOSTAS_MAP = DATA_DIR / 'map_respostas.csv'
+PESOS_PATH = DATA_DIR / 'pesos_perguntas.csv'
+
+
+def copy_if_missing(source, target):
+    if source.exists() and not target.exists():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+
+
+def bootstrap_data_dir():
+    if SOURCE_DATA_DIR.exists():
+        for source_file in SOURCE_DATA_DIR.glob('*.xlsx'):
+            copy_if_missing(source_file, DATA_DIR / source_file.name)
+
+        for filename in [
+            'normalizacao_funcoes.csv',
+            'normalizacao_setores.csv',
+            'map_respostas.csv',
+            'pesos_perguntas.csv',
+        ]:
+            copy_if_missing(SOURCE_DATA_DIR / filename, DATA_DIR / filename)
+
+
+def get_data_file():
+    bootstrap_data_dir()
+    xlsx_files = sorted(DATA_DIR.glob('*.xlsx'))
+    if not xlsx_files:
+        raise FileNotFoundError(
+            f'Nenhum arquivo .xlsx encontrado em: {DATA_DIR}. '
+            'Coloque a planilha dentro da pasta data ao lado do executável.'
+        )
+    return xlsx_files[0]
+
+
+DATA_FILE = get_data_file()
+
+print(f'Base de execução: {RUNTIME_BASE_DIR}')
+print(f'Base de empacotamento: {BUNDLE_BASE_DIR}')
+print(f'Pasta de dados gravável: {DATA_DIR}')
+print(f'Arquivo de dados selecionado: {DATA_FILE}')
 
 
 REV_KEYWORDS = [
@@ -172,7 +222,8 @@ def save_mapping_df(rows, path, values=None):
         df['grupo'] = df['grupo'].fillna(df['original'])
 
     df = df.sort_values(['original']).reset_index(drop=True)
-    df.to_csv(path, index=False)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(path, index=False, encoding='utf-8-sig')
     return df
 
 
@@ -217,7 +268,8 @@ def save_respostas_map(rows, path, values=None):
         df = base.merge(df[['resposta', 'valor']], on='resposta', how='left')
 
     df = df.sort_values('resposta').reset_index(drop=True)
-    df.to_csv(path, index=False)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(path, index=False, encoding='utf-8-sig')
     return df
 
 
@@ -267,7 +319,8 @@ def save_pesos(rows, perguntas):
     df['ativo'] = df['ativo'].map(norm_bool)
     df = df[['pergunta', 'peso', 'ativo']].dropna(subset=['pergunta']).drop_duplicates('pergunta', keep='last')
 
-    df.to_csv(PESOS_PATH, index=False)
+    PESOS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(PESOS_PATH, index=False, encoding='utf-8-sig')
     return read_pesos(perguntas)
 
 
